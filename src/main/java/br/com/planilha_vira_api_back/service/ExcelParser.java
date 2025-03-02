@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -45,15 +46,12 @@ public class ExcelParser {
 
     private List<Map<String, Object>> extrairDadosPlanilha(Sheet sheet) {
         List<Map<String, Object>> sheetData = new ArrayList<>();
-        Row headerRow = sheet.getRow(0);
-        if (headerRow == null) {
-            throw new IllegalArgumentException(
-                    "A planilha \"" + sheet.getSheetName() + "\" não possui cabeçalhos válidos.");
-        }
 
+        int linhaCabecalho = detectarLinhaCabecalho(sheet);
+        Row headerRow = sheet.getRow(linhaCabecalho);
         List<String> headers = obterCabecalhos(headerRow);
 
-        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+        for (int i = linhaCabecalho + 1; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
             if (row == null)
                 continue;
@@ -64,11 +62,54 @@ public class ExcelParser {
         return sheetData;
     }
 
+    private int detectarLinhaCabecalho(Sheet sheet) {
+        int linhaCabecalho = -1;
+        int maxColunasPreenchidas = 0;
+
+        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (isLinhaVazia(row)) continue;
+
+            int celulasPreenchidas = contarCelulasPreenchidas(row);
+
+            if (celulasPreenchidas > maxColunasPreenchidas) {
+                maxColunasPreenchidas = celulasPreenchidas;
+                linhaCabecalho = i;
+            }
+        }
+
+        validarLinhaCabecalho(linhaCabecalho);
+        return linhaCabecalho;
+    }
+
+    private boolean isLinhaVazia(Row row) {
+        return row == null || row.getPhysicalNumberOfCells() == 0;
+    }
+
+    private int contarCelulasPreenchidas(Row row) {
+        int count = 0;
+        for (Cell cell : row) {
+            if (isCelulaPreenchida(cell)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean isCelulaPreenchida(Cell cell) {
+        return cell != null && cell.getCellType() != CellType.BLANK;
+    }
+
+    private void validarLinhaCabecalho(int linhaCabecalho) {
+        if (linhaCabecalho == -1) {
+            throw new IllegalArgumentException("Nenhuma linha válida encontrada para cabeçalhos.");
+        }
+    }
+
     private List<String> obterCabecalhos(Row headerRow) {
         List<String> headers = new ArrayList<>();
-
         if (headerRow == null) {
-            throw new IllegalArgumentException("A primeira linha da planilha está vazia ou não foi encontrada.");
+            throw new IllegalArgumentException("A linha de cabeçalho está vazia.");
         }
 
         for (Cell cell : headerRow) {
